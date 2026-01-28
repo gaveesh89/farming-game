@@ -72,30 +72,45 @@ export const CROP_METADATA = {
         growthTime: 30, // seconds
         reward: 100, // coins
         emoji: "🌾",
+        fertilityCost: 10,
+        isRestorative: false,
+        growthStages: 4,
     },
     [CROP_TYPES.TOMATO]: {
         name: "Tomato",
         growthTime: 45, // seconds
         reward: 300, // coins
         emoji: "🍅",
+        fertilityCost: 15,
+        isRestorative: false,
+        growthStages: 4,
     },
     [CROP_TYPES.CORN]: {
         name: "Corn",
         growthTime: 60, // seconds
         reward: 500, // coins
         emoji: "🌽",
+        fertilityCost: 20,
+        isRestorative: false,
+        growthStages: 4,
     },
     [CROP_TYPES.CARROT]: {
         name: "Carrot",
         growthTime: 25, // seconds
         reward: 150, // coins
         emoji: "🥕",
+        fertilityCost: 5,
+        isRestorative: true,
+        growthStages: 3,
     },
     [CROP_TYPES.LETTUCE]: {
         name: "Lettuce",
         growthTime: 20, // seconds
         reward: 80, // coins
         emoji: "🥬",
+        fertilityCost: 5,
+        isRestorative: true,
+        growthStages: 3,
     },
 } as const;
 
@@ -170,6 +185,8 @@ export interface TileState {
     plantedAt: number; // Unix timestamp
     isReady: boolean;
     timeRemaining: number; // seconds until ready (0 if ready)
+    fertility: number; // 0-100
+    lastCropType: number; // for rotation detection
 }
 
 /**
@@ -183,6 +200,8 @@ export interface TileState {
 export function calculateTileState(
     cropType: number,
     plantedAt: number,
+    fertility: number = 80,
+    lastCropType: number = 0,
     currentTime?: number
 ): TileState {
     const now = currentTime ?? Math.floor(Date.now() / 1000);
@@ -193,6 +212,8 @@ export function calculateTileState(
             plantedAt: 0,
             isReady: false,
             timeRemaining: 0,
+            fertility,
+            lastCropType,
         };
     }
 
@@ -210,6 +231,8 @@ export function calculateTileState(
         plantedAt,
         isReady,
         timeRemaining,
+        fertility,
+        lastCropType,
     };
 }
 
@@ -239,7 +262,7 @@ export function formatTimeRemaining(seconds: number): string {
  * @returns 5x5 grid of tile states
  */
 export function createFarmGrid(
-    tiles: Array<{ cropType: number; plantedAt: any }>,
+    tiles: Array<{ cropType: number; plantedAt: any; fertility?: number; lastCropType?: number }>,
     currentTime?: number
 ): TileState[][] {
     if (tiles.length !== GRID_CONFIG.TOTAL_TILES) {
@@ -258,8 +281,11 @@ export function createFarmGrid(
             const plantedAt = typeof tile.plantedAt === 'number'
                 ? tile.plantedAt
                 : tile.plantedAt.toNumber();
+            
+            const fertility = tile.fertility ?? 80; // Default for old accounts
+            const lastCropType = tile.lastCropType ?? 0;
 
-            grid[row][col] = calculateTileState(tile.cropType, plantedAt, currentTime);
+            grid[row][col] = calculateTileState(tile.cropType, plantedAt, fertility, lastCropType, currentTime);
         }
     }
 
@@ -273,6 +299,58 @@ export const ACCOUNT_SIZES = {
     DISCRIMINATOR: 8,
     PUBKEY: 32,
     U64: 8,
-    FARM_TILE: 9, // 1 (crop_type) + 8 (planted_at)
-    PLAYER_ACCOUNT: 273, // 8 + 32 + 8 + (25 * 9)
+    FARM_TILE: 11, // 1 (crop_type) + 8 (planted_at) + 1 (fertility) + 1 (last_crop_type)
+    PLAYER_ACCOUNT: 323, // 8 + 32 + 8 + (25 * 11)
 } as const;
+
+/**
+ * Get growth stage for a crop
+ */
+export function getCropGrowthStage(
+    plantedAt: number,
+    growthTime: number,
+    currentTime: number,
+    totalStages: number = 4
+): { stage: number; progress: number; emoji: string } {
+    const elapsed = currentTime - plantedAt;
+    const progress = Math.min(elapsed / growthTime, 1.0);
+    const stageFloat = progress * totalStages;
+    const stage = Math.min(Math.floor(stageFloat), totalStages - 1);
+    const stageProgress = stageFloat - stage;
+
+    // Map stage to emoji
+    const stageEmojis = ['🌱', '🌿', '🌾', '✨']; // seedling → growing → mature → sparkle
+    const emoji = stageEmojis[stage] || '🌱';
+
+    return { stage, progress, emoji };
+}
+
+/**
+ * Get fertility color for UI display
+ */
+export function getFertilityColor(fertility: number): string {
+    if (fertility >= 80) return 'text-green-600 dark:text-green-400';
+    if (fertility >= 50) return 'text-yellow-600 dark:text-yellow-400';
+    if (fertility >= 30) return 'text-orange-600 dark:text-orange-400';
+    return 'text-red-600 dark:text-red-400';
+}
+
+/**
+ * Get fertility label for UI display
+ */
+export function getFertilityLabel(fertility: number): string {
+    if (fertility >= 80) return 'Rich';
+    if (fertility >= 50) return 'Good';
+    if (fertility >= 30) return 'Poor';
+    return 'Depleted';
+}
+
+/**
+ * Get fertility background color
+ */
+export function getFertilityBgColor(fertility: number): string {
+    if (fertility >= 80) return 'bg-green-100 dark:bg-green-900/30';
+    if (fertility >= 50) return 'bg-yellow-100 dark:bg-yellow-900/30';
+    if (fertility >= 30) return 'bg-orange-100 dark:bg-orange-900/30';
+    return 'bg-red-100 dark:bg-red-900/30';
+}

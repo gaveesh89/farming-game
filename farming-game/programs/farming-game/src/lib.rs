@@ -19,10 +19,17 @@ pub mod farming_game {
         // Initialize coins to 0
         player_account.coins = 0;
 
-        // Initialize all 25 farm tiles to empty state (crop_type=0, planted_at=0)
-        player_account.farm_tiles = [FarmTile::default(); TILE_COUNT];
+        // Initialize all 25 farm tiles with starting fertility
+        for i in 0..TILE_COUNT {
+            player_account.farm_tiles[i] = FarmTile {
+                crop_type: 0,
+                planted_at: 0,
+                fertility: 80,        // Start at 80% (teaches mechanic)
+                last_crop_type: 0,
+            };
+        }
 
-        msg!("Player account initialized for: {}", player_account.owner);
+        msg!("Player account initialized for: {} | Starting fertility: 80", player_account.owner);
         Ok(())
     }
 
@@ -41,6 +48,19 @@ pub mod farming_game {
         // Check if tile is empty
         require!(tile.crop_type == 0, FarmingError::TileNotEmpty);
 
+        // Lazy initialization for migrated accounts
+        if tile.fertility == 0 {
+            tile.fertility = 60; // Default for migrated accounts
+        }
+
+        // Check for crop rotation bonus
+        let is_rotation = tile.last_crop_type != 0 && tile.last_crop_type != crop_type;
+        if is_rotation {
+            // Crop rotation bonus: +10 fertility (capped at 100)
+            tile.fertility = tile.fertility.saturating_add(10).min(100);
+            msg!("Crop rotation bonus! Fertility +10");
+        }
+
         // Get current timestamp
         let current_time = Clock::get()?.unix_timestamp;
 
@@ -48,7 +68,8 @@ pub mod farming_game {
         tile.crop_type = crop_type;
         tile.planted_at = current_time;
 
-        msg!("Crop type {} planted on tile {} at {}", crop_type, tile_index, current_time);
+        msg!("Crop type {} planted on tile {} at {} | Fertility: {}", 
+             crop_type, tile_index, current_time, tile.fertility);
         Ok(())
     }
 
@@ -64,6 +85,7 @@ pub mod farming_game {
 
         let crop_type = tile.crop_type;
         let planted_at = tile.planted_at;
+        let fertility = tile.fertility;
         let current_time = Clock::get()?.unix_timestamp;
 
         // Get crop config
@@ -76,24 +98,46 @@ pub mod farming_game {
         // Must be mature to harvest (time_since_mature >= 0)
         require!(time_since_mature >= 0, FarmingError::CropNotMature);
 
-        // Calculate yield with decay
-        let yield_amount = calculate_harvest_yield(
+        // Calculate yield with both time decay AND fertility
+        let yield_amount = calculate_harvest_yield_with_fertility(
             time_since_mature,
             config.base_yield,
             config.optimal_window,
             config.max_decay_time,
             config.min_yield,
+            fertility,
         )?;
 
         // Add coins to player account
         player_account.coins = player_account.coins.saturating_add(yield_amount as u64);
 
-        // Clear the tile
-        let cleared_tile = &mut player_account.farm_tiles[tile_index as usize];
-        cleared_tile.crop_type = 0;
-        cleared_tile.planted_at = 0;
+        // Apply fertility changes
+        let updated_tile = &mut player_account.farm_tiles[tile_index as usize];
+        
+        if config.is_restorative {
+            // Restorative crops: restore 10 fertility, lose only the fertility_cost
+            updated_tile.fertility = updated_tile.fertility
+                .saturating_add(10)
+                .saturating_sub(config.fertility_cost)
+                .max(20)  // Hard floor at 20
+                .min(100);
+            msg!("Restorative crop: fertility +10, -{}", config.fertility_cost);
+        } else {
+            // Normal crops: deplete fertility
+            updated_tile.fertility = updated_tile.fertility
+                .saturating_sub(config.fertility_cost)
+                .max(20);  // Hard floor at 20
+        }
 
-        msg!("Crop type {} harvested from tile {} with yield {}", crop_type, tile_index, yield_amount);
+        // Store crop type for rotation detection
+        updated_tile.last_crop_type = updated_tile.crop_type;
+
+        // Clear the tile
+        updated_tile.crop_type = 0;
+        updated_tile.planted_at = 0;
+
+        msg!("Harvested {} coins from tile {} | Fertility now: {}", 
+             yield_amount, tile_index, updated_tile.fertility);
         Ok(())
     }
 
@@ -108,6 +152,34 @@ pub mod farming_game {
         tile.planted_at = 0;
 
         msg!("Tile {} cleared", tile_index);
+        Ok(())
+    }
+
+    /// Let a plot rest to restore fertility naturally
+    pub fn leave_fallow(ctx: Context<LeaveFallow>, tile_index: u8) -> Result<()> {
+        require!(tile_index < TILE_COUNT as u8, FarmingError::InvalidTileIndex);
+        
+        let player_account = &mut ctx.accounts.player_account;
+        let tile = &mut player_account.farm_tiles[tile_index as usize];
+        
+        // Must be empty to fallow
+        require!(tile.crop_type == 0, FarmingError::TileNotEmpty);
+        
+        let current_time = Clock::get()?.unix_timestamp;
+        let time_empty = current_time.saturating_sub(tile.planted_at.max(0));
+        
+        // Restore 1 fertility per hour empty (3600 seconds)
+        const FALLOW_RESTORE_RATE: i64 = 3600; // 1 hour = 1 fertility
+        let fertility_gain = (time_empty / FALLOW_RESTORE_RATE) as u8;
+        
+        if fertility_gain > 0 {
+            tile.fertility = tile.fertility.saturating_add(fertility_gain).min(100);
+            tile.planted_at = current_time; // Reset timer
+            msg!("Fallow restored {} fertility on tile {}", fertility_gain, tile_index);
+        } else {
+            msg!("Not enough time passed for fallow restoration (need {} seconds)", FALLOW_RESTORE_RATE);
+        }
+        
         Ok(())
     }
 }
@@ -158,6 +230,46 @@ fn calculate_harvest_yield(
     Ok(final_yield.max(min_yield))
 }
 
+/// Calculate fertility modifier for yield (40% minimum, 100% at full fertility)
+/// Returns percentage multiplier (40-100)
+fn calculate_fertility_modifier(fertility: u8) -> u32 {
+    const MIN_MODIFIER: u32 = 40;  // 40% minimum yield
+    const MAX_MODIFIER: u32 = 100; // 100% at full fertility
+    
+    // Linear scaling: 0 fertility = 40%, 100 fertility = 100%
+    let modifier = MIN_MODIFIER + ((fertility as u32) * (MAX_MODIFIER - MIN_MODIFIER)) / 100;
+    
+    modifier.min(MAX_MODIFIER)
+}
+
+/// Calculate harvest yield with both time decay AND fertility modifier
+fn calculate_harvest_yield_with_fertility(
+    time_since_mature: i64,
+    base_yield: u32,
+    optimal_window: i64,
+    max_decay_time: i64,
+    min_yield: u32,
+    fertility: u8,
+) -> Result<u32> {
+    // First calculate time-based yield
+    let time_based_yield = calculate_harvest_yield(
+        time_since_mature,
+        base_yield,
+        optimal_window,
+        max_decay_time,
+        min_yield,
+    )?;
+    
+    // Then apply fertility modifier
+    let fertility_modifier = calculate_fertility_modifier(fertility);
+    let final_yield = (time_based_yield as u64)
+        .saturating_mul(fertility_modifier as u64)
+        .saturating_div(100) as u32;
+    
+    // Ensure minimum yield (never zero)
+    Ok(final_yield.max(min_yield / 2))
+}
+
 /// Get crop configuration by crop type
 fn get_crop_config(crop_type: u8) -> Result<CropConfig> {
     match crop_type {
@@ -181,6 +293,9 @@ const WHEAT_CONFIG: CropConfig = CropConfig {
     max_decay_time: 60,         // 60 seconds total before min yield
     base_yield: 100,
     min_yield: 20,              // 20% of base
+    fertility_cost: 10,         // Moderate soil depletion
+    is_restorative: false,
+    growth_stages: 4,
 };
 
 /// Tomato - Medium growth, reasonable decay window
@@ -192,6 +307,9 @@ const TOMATO_CONFIG: CropConfig = CropConfig {
     max_decay_time: 90,         // 90 seconds total before min yield
     base_yield: 300,
     min_yield: 60,              // 20% of base
+    fertility_cost: 15,         // High soil depletion
+    is_restorative: false,
+    growth_stages: 4,
 };
 
 /// Corn - Longer growth, extended decay window for realistic farming
@@ -203,6 +321,9 @@ const CORN_CONFIG: CropConfig = CropConfig {
     max_decay_time: 120,        // 120 seconds total before min yield
     base_yield: 500,
     min_yield: 100,             // 20% of base
+    fertility_cost: 20,         // Very high soil depletion
+    is_restorative: false,
+    growth_stages: 4,
 };
 
 /// Carrot - Fast growing with tight optimal window
@@ -214,6 +335,9 @@ const CARROT_CONFIG: CropConfig = CropConfig {
     max_decay_time: 50,         // 50 seconds total before min yield
     base_yield: 150,
     min_yield: 30,              // 20% of base
+    fertility_cost: 5,          // Low soil depletion
+    is_restorative: true,       // Restores soil!
+    growth_stages: 3,
 };
 
 /// Lettuce - Fastest growing, quickest to decay
@@ -225,16 +349,19 @@ const LETTUCE_CONFIG: CropConfig = CropConfig {
     max_decay_time: 40,         // 40 seconds total before min yield
     base_yield: 80,
     min_yield: 16,              // 20% of base
+    fertility_cost: 5,          // Low soil depletion
+    is_restorative: true,       // Restores soil!
+    growth_stages: 3,
 };
 
 #[derive(Accounts)]
 pub struct InitializePlayer<'info> {
     /// The player account PDA to be created
-    /// Space: 8 (discriminator) + 32 (owner) + 8 (coins) + (25 * 9) (tiles) = 273
+    /// Space: 8 (discriminator) + 32 (owner) + 8 (coins) + (25 * 11) (tiles) = 323
     #[account(
         init,
         payer = signer,
-        space = 8 + 32 + 8 + (TILE_COUNT * 9),
+        space = 8 + 32 + 8 + (TILE_COUNT * 11),
         seeds = [b"player", signer.key().as_ref()],
         bump
     )]
@@ -285,6 +412,19 @@ pub struct ClearTile<'info> {
     pub signer: Signer<'info>,
 }
 
+#[derive(Accounts)]
+pub struct LeaveFallow<'info> {
+    #[account(
+        mut,
+        seeds = [b"player", signer.key().as_ref()],
+        bump
+    )]
+    pub player_account: Account<'info, PlayerAccount>,
+
+    #[account(mut)]
+    pub signer: Signer<'info>,
+}
+
 #[account]
 pub struct PlayerAccount {
     pub owner: Pubkey,
@@ -296,6 +436,8 @@ pub struct PlayerAccount {
 pub struct FarmTile {
     pub crop_type: u8,
     pub planted_at: i64,
+    pub fertility: u8,        // 0-100, affects yield
+    pub last_crop_type: u8,   // for crop rotation detection
 }
 
 /// Crop configuration defining growth timing and yield decay parameters
@@ -311,6 +453,12 @@ pub struct CropConfig {
     pub base_yield: u32,
     /// Minimum yield (worst case) - yield never drops below this threshold
     pub min_yield: u32,
+    /// Fertility lost on harvest
+    pub fertility_cost: u8,
+    /// True for nitrogen-fixing crops that restore soil
+    pub is_restorative: bool,
+    /// Number of visual growth stages
+    pub growth_stages: u8,
 }
 
 #[error_code]

@@ -1,7 +1,7 @@
 "use client";
 
 import { FC } from "react";
-import { GRID_CONFIG, TileState, CROP_METADATA, CROP_TYPES } from "@/app/utils/gameHelpers";
+import { GRID_CONFIG, TileState, CROP_METADATA, CROP_TYPES, getCropGrowthStage, getFertilityColor } from "@/app/utils/gameHelpers";
 
 interface Props {
     grid: TileState[][] | null;
@@ -38,10 +38,18 @@ export const FarmGrid: FC<Props> = ({ grid, onTileClick }) => {
                         title={tile ? `Tile ${index}: ${crop?.name || "Empty"}` : `Tile ${index}`}
                     >
                         {crop ? (
-                            <div className="relative">
-                                <span className="text-2xl drop-shadow-sm transform group-hover:scale-110 transition-transform block">
-                                    {crop.emoji}
-                                </span>
+                            <div className="relative flex flex-col items-center">
+                                {/* Growth stage emoji */}
+                                {tile && tile.plantedAt > 0 && (
+                                    <span className="text-2xl drop-shadow-sm transform group-hover:scale-110 transition-transform block">
+                                        {getCropGrowthStage(
+                                            tile.plantedAt,
+                                            crop.growthTime,
+                                            Math.floor(Date.now() / 1000),
+                                            crop.growthStages
+                                        ).emoji}
+                                    </span>
+                                )}
 
                                 {/* Readiness Indicator */}
                                 {tile?.isReady && (
@@ -54,9 +62,24 @@ export const FarmGrid: FC<Props> = ({ grid, onTileClick }) => {
                                         {tile.timeRemaining}s
                                     </span>
                                 )}
+                                
+                                {/* Fertility indicator */}
+                                {tile && (
+                                    <span className={`text-[8px] font-bold mt-0.5 ${getFertilityColor(tile.fertility)}`}>
+                                        {tile.fertility}%
+                                    </span>
+                                )}
                             </div>
                         ) : (
-                            <span className="text-amber-900/20 dark:text-white/10 group-hover:text-amber-900/40">{index}</span>
+                            <div className="flex flex-col items-center gap-0.5">
+                                <span className="text-amber-900/20 dark:text-white/10 group-hover:text-amber-900/40">{index}</span>
+                                {/* Show fertility even on empty tiles */}
+                                {tile && (
+                                    <span className={`text-[8px] font-bold ${getFertilityColor(tile.fertility)}`}>
+                                        {tile.fertility}%
+                                    </span>
+                                )}
+                            </div>
                         )}
                     </button>
                 );
