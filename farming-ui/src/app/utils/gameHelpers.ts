@@ -55,7 +55,10 @@ export function derivePlayerPDASync(
 export const CROP_TYPES = {
     EMPTY: 0,
     WHEAT: 1,
-    CORN: 2,
+    TOMATO: 2,
+    CORN: 3,
+    CARROT: 4,
+    LETTUCE: 5,
 } as const;
 
 export type CropType = typeof CROP_TYPES[keyof typeof CROP_TYPES];
@@ -67,14 +70,32 @@ export const CROP_METADATA = {
     [CROP_TYPES.WHEAT]: {
         name: "Wheat",
         growthTime: 30, // seconds
-        reward: 1, // coins
+        reward: 100, // coins
         emoji: "🌾",
+    },
+    [CROP_TYPES.TOMATO]: {
+        name: "Tomato",
+        growthTime: 45, // seconds
+        reward: 300, // coins
+        emoji: "🍅",
     },
     [CROP_TYPES.CORN]: {
         name: "Corn",
         growthTime: 60, // seconds
-        reward: 2, // coins
+        reward: 500, // coins
         emoji: "🌽",
+    },
+    [CROP_TYPES.CARROT]: {
+        name: "Carrot",
+        growthTime: 25, // seconds
+        reward: 150, // coins
+        emoji: "🥕",
+    },
+    [CROP_TYPES.LETTUCE]: {
+        name: "Lettuce",
+        growthTime: 20, // seconds
+        reward: 80, // coins
+        emoji: "🥬",
     },
 } as const;
 

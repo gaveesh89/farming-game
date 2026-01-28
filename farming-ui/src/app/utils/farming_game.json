@@ -8,26 +8,23 @@
   },
   "instructions": [
     {
-      "name": "harvest",
+      "name": "clear_tile",
       "docs": [
-        "Harvest a crop from a specific tile"
+        "Clear a tile to allow replanting"
       ],
       "discriminator": [
-        228,
-        241,
-        31,
-        182,
-        53,
-        169,
-        59,
-        199
+        177,
+        104,
+        157,
+        55,
+        227,
+        192,
+        218,
+        8
       ],
       "accounts": [
         {
           "name": "player_account",
-          "docs": [
-            "The player account PDA to modify"
-          ],
           "writable": true,
           "pda": {
             "seeds": [
@@ -50,17 +47,61 @@
           }
         },
         {
-          "name": "owner",
-          "docs": [
-            "Must match the player_account.owner"
-          ],
-          "signer": true,
-          "relations": [
-            "player_account"
-          ]
+          "name": "signer",
+          "writable": true,
+          "signer": true
+        }
+      ],
+      "args": [
+        {
+          "name": "tile_index",
+          "type": "u8"
+        }
+      ]
+    },
+    {
+      "name": "harvest_crop",
+      "docs": [
+        "Harvest a crop from a specific tile with decay-based yield"
+      ],
+      "discriminator": [
+        138,
+        120,
+        16,
+        68,
+        125,
+        126,
+        8,
+        171
+      ],
+      "accounts": [
+        {
+          "name": "player_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "signer"
+              }
+            ]
+          }
         },
         {
-          "name": "signer"
+          "name": "signer",
+          "writable": true,
+          "signer": true
         }
       ],
       "args": [
@@ -89,7 +130,8 @@
         {
           "name": "player_account",
           "docs": [
-            "The player account PDA to be created"
+            "The player account PDA to be created",
+            "Space: 8 (discriminator) + 32 (owner) + 8 (coins) + (25 * 9) (tiles) = 273"
           ],
           "writable": true,
           "pda": {
@@ -114,43 +156,34 @@
         },
         {
           "name": "signer",
-          "docs": [
-            "The user's wallet that will own this player account"
-          ],
           "writable": true,
           "signer": true
         },
         {
           "name": "system_program",
-          "docs": [
-            "System program for account creation"
-          ],
           "address": "11111111111111111111111111111111"
         }
       ],
       "args": []
     },
     {
-      "name": "plant",
+      "name": "plant_crop",
       "docs": [
         "Plant a crop on a specific tile"
       ],
       "discriminator": [
-        200,
-        121,
-        224,
-        150,
-        235,
-        239,
-        156,
-        246
+        16,
+        193,
+        20,
+        209,
+        64,
+        167,
+        226,
+        125
       ],
       "accounts": [
         {
           "name": "player_account",
-          "docs": [
-            "The player account PDA to modify"
-          ],
           "writable": true,
           "pda": {
             "seeds": [
@@ -173,17 +206,9 @@
           }
         },
         {
-          "name": "owner",
-          "docs": [
-            "Must match the player_account.owner"
-          ],
-          "signer": true,
-          "relations": [
-            "player_account"
-          ]
-        },
-        {
-          "name": "signer"
+          "name": "signer",
+          "writable": true,
+          "signer": true
         }
       ],
       "args": [
@@ -217,55 +242,46 @@
     {
       "code": 6000,
       "name": "InvalidTileIndex",
-      "msg": "Tile index must be between 0 and 24"
+      "msg": "Invalid tile index"
     },
     {
       "code": 6001,
-      "name": "TileNotEmpty",
-      "msg": "This tile already has a crop planted"
+      "name": "InvalidCropType",
+      "msg": "Invalid crop type"
     },
     {
       "code": 6002,
-      "name": "InvalidCropType",
-      "msg": "Invalid crop type. Use 1 for WHEAT or 2 for CORN"
+      "name": "TileNotEmpty",
+      "msg": "Tile is not empty"
     },
     {
       "code": 6003,
-      "name": "InvalidOwner",
-      "msg": "You are not the owner of this player account"
+      "name": "NoActiveCrop",
+      "msg": "No active crop on this tile"
     },
     {
       "code": 6004,
-      "name": "TileEmpty",
-      "msg": "This tile is empty - no crop to harvest"
+      "name": "CropNotMature",
+      "msg": "Crop is not yet mature"
     },
     {
       "code": 6005,
-      "name": "CropNotReady",
-      "msg": "Crop is not ready to harvest yet"
+      "name": "InvalidCropConfig",
+      "msg": "Invalid crop configuration"
     }
   ],
   "types": [
     {
       "name": "FarmTile",
-      "docs": [
-        "Represents a single farm tile on the player's farm"
-      ],
       "type": {
         "kind": "struct",
         "fields": [
           {
             "name": "crop_type",
-            "docs": [
-              "Type of crop planted (0 = empty, 1+ = specific crop types)"
-            ],
             "type": "u8"
           },
           {
             "name": "planted_at",
-            "docs": [
-              "Unix timestamp when the crop was planted (0 if no crop)"
-            ],
             "type": "i64"
           }
         ]
@@ -273,39 +289,19 @@
     },
     {
       "name": "PlayerAccount",
-      "docs": [
-        "Player's farming account - one PDA per user wallet",
-        "",
-        "Space calculation:",
-        "- Discriminator: 8 bytes",
-        "- owner (Pubkey): 32 bytes",
-        "- coins: 8 bytes (u64)",
-        "- farm_tiles: 25 tiles × 9 bytes per tile = 225 bytes",
-        "(each tile: 1 byte crop_type + 8 bytes planted_at)",
-        "Total: 8 + 32 + 8 + 225 = 273 bytes"
-      ],
       "type": {
         "kind": "struct",
         "fields": [
           {
             "name": "owner",
-            "docs": [
-              "The wallet address that owns this farm"
-            ],
             "type": "pubkey"
           },
           {
             "name": "coins",
-            "docs": [
-              "Player's in-game currency"
-            ],
             "type": "u64"
           },
           {
             "name": "farm_tiles",
-            "docs": [
-              "5×5 grid of farm tiles (25 total)"
-            ],
             "type": {
               "array": [
                 {

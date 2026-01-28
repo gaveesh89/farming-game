@@ -22,8 +22,8 @@ export default function Home() {
   const [txStatus, setTxStatus] = useState<string | null>(null);
   const [showDebug, setShowDebug] = useState(false);
 
-  // Tools: "cursor" (interact/harvest), "wheat", "corn"
-  const [selectedTool, setSelectedTool] = useState<"cursor" | "wheat" | "corn">("cursor");
+  // Tools: "cursor" (interact/harvest), "wheat", "tomato", "corn", "carrot", "lettuce"
+  const [selectedTool, setSelectedTool] = useState<"cursor" | "wheat" | "tomato" | "corn" | "carrot" | "lettuce">("cursor");
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -97,13 +97,20 @@ export default function Home() {
     }
 
     if (e.message) {
-      if (e.message.includes("0x1")) msg = "Insufficient Funds 💸";
-      else if (e.message.includes("Blockhash not found")) msg = "Network busy, retrying...";
+      if (e.message.includes("already been processed")) {
+        msg = "Transaction confirmed! Refreshing... ✅";
+        // Transaction likely succeeded, just refresh state
+        refreshState();
+      } else if (e.message.includes("0x1")) msg = "Insufficient Funds 💸";
+      else if (e.message.includes("Blockhash not found")) msg = "Network busy, try again...";
+      else if (e.message.includes("Simulation failed")) msg = "Simulation failed - check account/params";
       else msg = e.message;
     }
 
-    setTxStatus(`❌ ${msg}`);
-    alert(`Error in ${context}: ${msg}`);
+    setTxStatus(`${msg.includes("✅") ? "" : "❌ "}${msg}`);
+    if (!msg.includes("confirmed")) {
+      alert(`Error in ${context}: ${msg}`);
+    }
     setTimeout(() => setTxStatus(null), 3000);
   };
 
@@ -114,8 +121,14 @@ export default function Home() {
     if (tile.cropType === CROP_TYPES.EMPTY) {
       if (selectedTool === "wheat") {
         plant(index, CROP_TYPES.WHEAT);
+      } else if (selectedTool === "tomato") {
+        plant(index, CROP_TYPES.TOMATO);
       } else if (selectedTool === "corn") {
         plant(index, CROP_TYPES.CORN);
+      } else if (selectedTool === "carrot") {
+        plant(index, CROP_TYPES.CARROT);
+      } else if (selectedTool === "lettuce") {
+        plant(index, CROP_TYPES.LETTUCE);
       } else {
         setTxStatus("Select a seed first! 🌱");
         setTimeout(() => setTxStatus(null), 2000);
@@ -133,6 +146,7 @@ export default function Home() {
   // Plant Action
   const plant = async (index: number, cropType: number) => {
     if (!wallet || !playerPDA) return;
+    if (loading) return; // Prevent duplicate submissions
     if (solBalance < 0.001) {
       setTxStatus("Needs SOL! 💸");
       alert("You need Devnet SOL to pay for gas! Airdrop some funding.");
@@ -143,14 +157,18 @@ export default function Home() {
     setTxStatus("Planting... 🌱");
     try {
       const program = getProgram(connection, wallet);
-      await program.methods.plant(index, cropType)
+      const tx = await program.methods.plantCrop(index, cropType)
         .accounts({
           playerAccount: playerPDA,
-          owner: wallet.publicKey,
           signer: wallet.publicKey,
         } as any)
-        .rpc();
+        .rpc({ skipPreflight: false });
+      
+      console.log("Plant TX:", tx);
       setTxStatus("Planted! ✅");
+      
+      // Wait a bit for state update
+      await new Promise(resolve => setTimeout(resolve, 1000));
       await refreshState();
       setTimeout(() => setTxStatus(null), 2000);
     } catch (e: any) {
@@ -163,18 +181,23 @@ export default function Home() {
   // Harvest Action
   const harvest = async (index: number) => {
     if (!wallet || !playerPDA) return;
+    if (loading) return; // Prevent duplicate submissions
     setLoading(true);
     setTxStatus("Harvesting... 🚜");
     try {
       const program = getProgram(connection, wallet);
-      await program.methods.harvest(index)
+      const tx = await program.methods.harvestCrop(index)
         .accounts({
           playerAccount: playerPDA,
-          owner: wallet.publicKey,
           signer: wallet.publicKey,
         } as any)
-        .rpc();
+        .rpc({ skipPreflight: false });
+      
+      console.log("Harvest TX:", tx);
       setTxStatus("Harvested! 💰");
+      
+      // Wait a bit for state update
+      await new Promise(resolve => setTimeout(resolve, 1000));
       await refreshState();
       setTimeout(() => setTxStatus(null), 2000);
     } catch (e: any) {
@@ -201,7 +224,6 @@ export default function Home() {
         .accounts({
           playerAccount: playerPDA,
           signer: wallet.publicKey,
-          owner: wallet.publicKey,
           systemProgram: anchor.web3.SystemProgram.programId,
         } as any)
         .rpc();
@@ -264,7 +286,7 @@ export default function Home() {
             {accountExists ? (
               <>
                 {/* Tool Selection */}
-                <div className="flex bg-white dark:bg-slate-800 p-1 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700">
+                <div className="flex bg-white dark:bg-slate-800 p-1 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 flex-wrap gap-1">
                   <button
                     onClick={() => setSelectedTool("cursor")}
                     className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${selectedTool === "cursor"
@@ -282,7 +304,16 @@ export default function Home() {
                       : "text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-700"
                       }`}
                   >
-                    <span>🌾</span> Rice
+                    <span>🌾</span> Wheat
+                  </button>
+                  <button
+                    onClick={() => setSelectedTool("tomato")}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${selectedTool === "tomato"
+                      ? "bg-red-100 text-red-800 shadow-sm"
+                      : "text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-700"
+                      }`}
+                  >
+                    <span>🍅</span> Tomato
                   </button>
                   <button
                     onClick={() => setSelectedTool("corn")}
@@ -292,6 +323,24 @@ export default function Home() {
                       }`}
                   >
                     <span>🌽</span> Corn
+                  </button>
+                  <button
+                    onClick={() => setSelectedTool("carrot")}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${selectedTool === "carrot"
+                      ? "bg-orange-100 text-orange-800 shadow-sm"
+                      : "text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-700"
+                      }`}
+                  >
+                    <span>🥕</span> Carrot
+                  </button>
+                  <button
+                    onClick={() => setSelectedTool("lettuce")}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${selectedTool === "lettuce"
+                      ? "bg-green-100 text-green-800 shadow-sm"
+                      : "text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-700"
+                      }`}
+                  >
+                    <span>🥬</span> Lettuce
                   </button>
                 </div>
 
