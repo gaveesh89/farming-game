@@ -182,6 +182,23 @@ pub mod farming_game {
         
         Ok(())
     }
+
+    /// Close player account and reclaim rent (useful for testing/resetting)
+    /// Works even with old account structure - doesn't require deserialization
+    pub fn close_player(ctx: Context<ClosePlayer>) -> Result<()> {
+        let account = &ctx.accounts.player_account;
+        let signer = &ctx.accounts.signer;
+        let system_program = &ctx.accounts.system_program;
+        
+        // Transfer lamports from account to signer
+        let account_lamports = account.lamports();
+        **account.lamports.borrow_mut() = 0;
+        **signer.lamports.borrow_mut() = signer.lamports().checked_add(account_lamports)
+            .ok_or(ProgramError::ArithmeticOverflow)?;
+        
+        msg!("Closed player account and transferred {} lamports", account_lamports);
+        Ok(())
+    }
 }
 
 /// Calculate harvest yield with decay system using integer arithmetic
@@ -423,6 +440,24 @@ pub struct LeaveFallow<'info> {
 
     #[account(mut)]
     pub signer: Signer<'info>,
+}
+
+#[derive(Accounts)]
+pub struct ClosePlayer<'info> {
+    /// Use UncheckedAccount to avoid deserializing the old account structure
+    /// This allows closing accounts even if they have incompatible data layout
+    /// CHECK: We only need to verify the PDA derivation, not the account contents
+    #[account(
+        mut,
+        seeds = [b"player", signer.key().as_ref()],
+        bump
+    )]
+    pub player_account: UncheckedAccount<'info>,
+
+    #[account(mut)]
+    pub signer: Signer<'info>,
+    
+    pub system_program: Program<'info, System>,
 }
 
 #[account]

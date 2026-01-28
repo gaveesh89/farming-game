@@ -60,6 +60,62 @@
       ]
     },
     {
+      "name": "close_player",
+      "docs": [
+        "Close player account and reclaim rent (useful for testing/resetting)",
+        "Works even with old account structure - doesn't require deserialization"
+      ],
+      "discriminator": [
+        225,
+        227,
+        204,
+        63,
+        32,
+        122,
+        58,
+        227
+      ],
+      "accounts": [
+        {
+          "name": "player_account",
+          "docs": [
+            "Use UncheckedAccount to avoid deserializing the old account structure",
+            "This allows closing accounts even if they have incompatible data layout"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "signer"
+              }
+            ]
+          }
+        },
+        {
+          "name": "signer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "harvest_crop",
       "docs": [
         "Harvest a crop from a specific tile with decay-based yield"
@@ -131,7 +187,7 @@
           "name": "player_account",
           "docs": [
             "The player account PDA to be created",
-            "Space: 8 (discriminator) + 32 (owner) + 8 (coins) + (25 * 9) (tiles) = 273"
+            "Space: 8 (discriminator) + 32 (owner) + 8 (coins) + (25 * 11) (tiles) = 323"
           ],
           "writable": true,
           "pda": {
@@ -165,6 +221,58 @@
         }
       ],
       "args": []
+    },
+    {
+      "name": "leave_fallow",
+      "docs": [
+        "Let a plot rest to restore fertility naturally"
+      ],
+      "discriminator": [
+        127,
+        224,
+        206,
+        72,
+        57,
+        192,
+        24,
+        231
+      ],
+      "accounts": [
+        {
+          "name": "player_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "signer"
+              }
+            ]
+          }
+        },
+        {
+          "name": "signer",
+          "writable": true,
+          "signer": true
+        }
+      ],
+      "args": [
+        {
+          "name": "tile_index",
+          "type": "u8"
+        }
+      ]
     },
     {
       "name": "plant_crop",
@@ -283,6 +391,14 @@
           {
             "name": "planted_at",
             "type": "i64"
+          },
+          {
+            "name": "fertility",
+            "type": "u8"
+          },
+          {
+            "name": "last_crop_type",
+            "type": "u8"
           }
         ]
       }

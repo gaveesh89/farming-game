@@ -22,6 +22,39 @@ describe("farming-game", () => {
   const CROP_WHEAT = 1;
   const CROP_CORN = 2;
 
+  describe("close_player", () => {
+    it("Closes old player account if it exists", async () => {
+      // Check if account exists
+      let accountInfo = await provider.connection.getAccountInfo(playerPDA);
+      
+      if (accountInfo) {
+        console.log(`\n🗑️ Closing old account (${accountInfo.data.length} bytes)...`);
+        
+        // Call close_player to delete the old account
+        try {
+          await program.methods
+            .closePlayer()
+            .accounts({
+              playerAccount: playerPDA,
+              signer: player,
+            })
+            .rpc();
+          
+          console.log("✅ Old account closed successfully!");
+          
+          // Verify account is deleted
+          accountInfo = await provider.connection.getAccountInfo(playerPDA);
+          assert.isNull(accountInfo, "Account should be deleted");
+        } catch (error: any) {
+          console.error("❌ Error closing account:", error.message);
+          throw error;
+        }
+      } else {
+        console.log("✅ No old account to close, starting fresh");
+      }
+    });
+  });
+
   describe("initialize_player", () => {
     it("Creates PDA and sets default values", async () => {
       // Initialize player account

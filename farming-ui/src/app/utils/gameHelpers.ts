@@ -64,7 +64,7 @@ export const CROP_TYPES = {
 export type CropType = typeof CROP_TYPES[keyof typeof CROP_TYPES];
 
 /**
- * Crop metadata
+ * Crop metadata - must match on-chain CropConfig
  */
 export const CROP_METADATA = {
     [CROP_TYPES.WHEAT]: {
@@ -75,6 +75,10 @@ export const CROP_METADATA = {
         fertilityCost: 10,
         isRestorative: false,
         growthStages: 4,
+        baseYield: 100,
+        minYield: 20,
+        optimalHarvestWindow: 20,
+        maxDecayTime: 60,
     },
     [CROP_TYPES.TOMATO]: {
         name: "Tomato",
@@ -84,6 +88,10 @@ export const CROP_METADATA = {
         fertilityCost: 15,
         isRestorative: false,
         growthStages: 4,
+        baseYield: 300,
+        minYield: 60,
+        optimalHarvestWindow: 30,
+        maxDecayTime: 90,
     },
     [CROP_TYPES.CORN]: {
         name: "Corn",
@@ -93,6 +101,10 @@ export const CROP_METADATA = {
         fertilityCost: 20,
         isRestorative: false,
         growthStages: 4,
+        baseYield: 500,
+        minYield: 100,
+        optimalHarvestWindow: 40,
+        maxDecayTime: 120,
     },
     [CROP_TYPES.CARROT]: {
         name: "Carrot",
@@ -102,6 +114,10 @@ export const CROP_METADATA = {
         fertilityCost: 5,
         isRestorative: true,
         growthStages: 3,
+        baseYield: 150,
+        minYield: 30,
+        optimalHarvestWindow: 15,
+        maxDecayTime: 50,
     },
     [CROP_TYPES.LETTUCE]: {
         name: "Lettuce",
@@ -111,6 +127,10 @@ export const CROP_METADATA = {
         fertilityCost: 5,
         isRestorative: true,
         growthStages: 3,
+        baseYield: 80,
+        minYield: 16,
+        optimalHarvestWindow: 10,
+        maxDecayTime: 40,
     },
 } as const;
 

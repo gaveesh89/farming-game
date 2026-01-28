@@ -24,3 +24,68 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Harvest-ready pulsing animation */
+@keyframes harvest-pulse {
+  0%, 100% { 
+    box-shadow: 0 0 10px rgba(34, 197, 94, 0.4),
+                0 0 20px rgba(34, 197, 94, 0.2);
+    transform: scale(1);
+  }
+  50% { 
+    box-shadow: 0 0 20px rgba(34, 197, 94, 0.6),
+                0 0 30px rgba(34, 197, 94, 0.3);
+    transform: scale(1.02);
+  }
+}
+
+.harvest-ready {
+  animation: harvest-pulse 2s ease-in-out infinite;
+  border: 2px solid rgb(34, 197, 94) !important;
+}
+
+/* Late harvest warning */
+@keyframes warning-pulse {
+  0%, 100% { 
+    box-shadow: 0 0 10px rgba(249, 115, 22, 0.4);
+  }
+  50% { 
+    box-shadow: 0 0 20px rgba(249, 115, 22, 0.6);
+  }
+}
+
+.harvest-late {
+  animation: warning-pulse 1.5s ease-in-out infinite;
+  border: 2px solid rgb(249, 115, 22) !important;
+}
+
+/* Rotation bonus badge pop */
+@keyframes badge-pop {
+  0% { transform: scale(0) rotate(-12deg); opacity: 0; }
+  50% { transform: scale(1.1) rotate(0deg); }
+  100% { transform: scale(1) rotate(0deg); opacity: 1; }
+}
+
+.badge-pop {
+  animation: badge-pop 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+/* Fertility bar fill animation */
+@keyframes fill-bar {
+  from { width: 0%; }
+}
+
+.fertility-bar {
+  animation: fill-bar 0.5s ease-out;
+}
+
+/* Coin counter increment */
+@keyframes coin-increment {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.2); color: rgb(34, 197, 94); }
+  100% { transform: scale(1); }
+}
+
+.coin-increment {
+  animation: coin-increment 0.3s ease-out;
+}
