@@ -16,7 +16,7 @@ async function main() {
     new Uint8Array(JSON.parse(fs.readFileSync("../deploy-wallet.json", "utf-8")))
   );
   
-  const programId = new anchor.web3.PublicKey("7nktNDR2jguCMTya6kXUw7WLEV3s7E69mknQKp1yCrAQ");
+  const programId = new anchor.web3.PublicKey("8NND7mQn5q7UQcrVrzrQfsHwYruqnQshMjFuwq4WBaHR");
   
   // Derive PDA
   const [playerPDA] = anchor.web3.PublicKey.findProgramAddressSync(

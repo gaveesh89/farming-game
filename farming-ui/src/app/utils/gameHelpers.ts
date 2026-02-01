@@ -11,7 +11,7 @@ import { PublicKey } from "@solana/web3.js";
  * Update this with your deployed program ID
  */
 export const FARMING_GAME_PROGRAM_ID = new PublicKey(
-    "7nktNDR2jguCMTya6kXUw7WLEV3s7E69mknQKp1yCrAQ"
+    "8NND7mQn5q7UQcrVrzrQfsHwYruqnQshMjFuwq4WBaHR"
 );
 
 /**

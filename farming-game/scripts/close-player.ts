@@ -16,7 +16,7 @@ async function main() {
   // Load IDL
   const idl = JSON.parse(fs.readFileSync("./target/idl/farming_game.json", "utf-8"));
   
-  const programId = new anchor.web3.PublicKey("7nktNDR2jguCMTya6kXUw7WLEV3s7E69mknQKp1yCrAQ");
+  const programId = new anchor.web3.PublicKey("8NND7mQn5q7UQcrVrzrQfsHwYruqnQshMjFuwq4WBaHR");
   
   // Create provider
   const provider = new anchor.AnchorProvider(

@@ -1,5 +1,5 @@
 {
-  "address": "7nktNDR2jguCMTya6kXUw7WLEV3s7E69mknQKp1yCrAQ",
+  "address": "8NND7mQn5q7UQcrVrzrQfsHwYruqnQshMjFuwq4WBaHR",
   "metadata": {
     "name": "farming_game",
     "version": "0.1.0",
@@ -8,10 +8,212 @@
   },
   "instructions": [
     {
-      "name": "clear_tile",
-      "docs": [
-        "Clear a tile to allow replanting"
+      "name": "advance_day",
+      "discriminator": [
+        48,
+        184,
+        251,
+        5,
+        108,
+        113,
+        55,
+        77
       ],
+      "accounts": [
+        {
+          "name": "season_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  101,
+                  97,
+                  115,
+                  111,
+                  110,
+                  95,
+                  115,
+                  116,
+                  97,
+                  116,
+                  101
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "buy_tool",
+      "discriminator": [
+        126,
+        149,
+        95,
+        78,
+        80,
+        83,
+        163,
+        179
+      ],
+      "accounts": [
+        {
+          "name": "player_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "authority"
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "signer": true
+        },
+        {
+          "name": "owner",
+          "signer": true,
+          "relations": [
+            "player_account"
+          ]
+        },
+        {
+          "name": "clock",
+          "address": "SysvarC1ock11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "tool_type",
+          "type": "u8"
+        },
+        {
+          "name": "quantity",
+          "type": "u16"
+        }
+      ]
+    },
+    {
+      "name": "check_patterns",
+      "discriminator": [
+        209,
+        20,
+        110,
+        207,
+        165,
+        230,
+        122,
+        151
+      ],
+      "accounts": [
+        {
+          "name": "player_account",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "authority"
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "signer": true
+        }
+      ],
+      "args": [
+        {
+          "name": "plot_index",
+          "type": "u8"
+        }
+      ]
+    },
+    {
+      "name": "claim_crafted_item",
+      "discriminator": [
+        226,
+        45,
+        123,
+        14,
+        30,
+        208,
+        251,
+        50
+      ],
+      "accounts": [
+        {
+          "name": "player_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "authority"
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "signer": true
+        },
+        {
+          "name": "owner",
+          "signer": true,
+          "relations": [
+            "player_account"
+          ]
+        },
+        {
+          "name": "clock",
+          "address": "SysvarC1ock11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "clear_tile",
       "discriminator": [
         177,
         104,
@@ -41,13 +243,13 @@
               },
               {
                 "kind": "account",
-                "path": "signer"
+                "path": "authority"
               }
             ]
           }
         },
         {
-          "name": "signer",
+          "name": "authority",
           "writable": true,
           "signer": true
         }
@@ -61,10 +263,6 @@
     },
     {
       "name": "close_player",
-      "docs": [
-        "Close player account and reclaim rent (useful for testing/resetting)",
-        "Works even with old account structure - doesn't require deserialization"
-      ],
       "discriminator": [
         225,
         227,
@@ -79,8 +277,7 @@
         {
           "name": "player_account",
           "docs": [
-            "Use UncheckedAccount to avoid deserializing the old account structure",
-            "This allows closing accounts even if they have incompatible data layout"
+            "Use UncheckedAccount to avoid deserializing the old account structure"
           ],
           "writable": true,
           "pda": {
@@ -98,13 +295,13 @@
               },
               {
                 "kind": "account",
-                "path": "signer"
+                "path": "authority"
               }
             ]
           }
         },
         {
-          "name": "signer",
+          "name": "authority",
           "writable": true,
           "signer": true
         },
@@ -116,10 +313,183 @@
       "args": []
     },
     {
-      "name": "harvest_crop",
-      "docs": [
-        "Harvest a crop from a specific tile with decay-based yield"
+      "name": "collect_compost",
+      "discriminator": [
+        248,
+        56,
+        177,
+        48,
+        44,
+        181,
+        70,
+        59
       ],
+      "accounts": [
+        {
+          "name": "player_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "authority"
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "signer": true
+        },
+        {
+          "name": "owner",
+          "signer": true,
+          "relations": [
+            "player_account"
+          ]
+        },
+        {
+          "name": "clock",
+          "address": "SysvarC1ock11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "craft_item",
+      "discriminator": [
+        196,
+        249,
+        129,
+        219,
+        148,
+        234,
+        223,
+        222
+      ],
+      "accounts": [
+        {
+          "name": "player_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "authority"
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "signer": true
+        },
+        {
+          "name": "owner",
+          "signer": true,
+          "relations": [
+            "player_account"
+          ]
+        },
+        {
+          "name": "clock",
+          "address": "SysvarC1ock11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "item_id",
+          "type": "u8"
+        }
+      ]
+    },
+    {
+      "name": "gather_resource",
+      "discriminator": [
+        91,
+        35,
+        133,
+        148,
+        34,
+        172,
+        253,
+        77
+      ],
+      "accounts": [
+        {
+          "name": "player_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "authority"
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "signer": true
+        },
+        {
+          "name": "owner",
+          "signer": true,
+          "relations": [
+            "player_account"
+          ]
+        },
+        {
+          "name": "clock",
+          "address": "SysvarC1ock11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "resource_type",
+          "type": "u8"
+        },
+        {
+          "name": "amount",
+          "type": "u16"
+        }
+      ]
+    },
+    {
+      "name": "harvest_crop",
       "discriminator": [
         138,
         120,
@@ -149,13 +519,37 @@
               },
               {
                 "kind": "account",
-                "path": "signer"
+                "path": "authority"
               }
             ]
           }
         },
         {
-          "name": "signer",
+          "name": "season_state",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  101,
+                  97,
+                  115,
+                  111,
+                  110,
+                  95,
+                  115,
+                  116,
+                  97,
+                  116,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
           "writable": true,
           "signer": true
         }
@@ -168,10 +562,59 @@
       ]
     },
     {
-      "name": "initialize_player",
-      "docs": [
-        "Initialize a new player account (PDA)"
+      "name": "initialize_game",
+      "discriminator": [
+        44,
+        62,
+        102,
+        247,
+        126,
+        208,
+        130,
+        215
       ],
+      "accounts": [
+        {
+          "name": "game_config",
+          "docs": [
+            "Global singleton config PDA"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  103,
+                  97,
+                  109,
+                  101,
+                  95,
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "initialize_player",
       "discriminator": [
         79,
         249,
@@ -186,8 +629,7 @@
         {
           "name": "player_account",
           "docs": [
-            "The player account PDA to be created",
-            "Space: 8 (discriminator) + 32 (owner) + 8 (coins) + (25 * 11) (tiles) = 323"
+            "The player account PDA to be created"
           ],
           "writable": true,
           "pda": {
@@ -205,13 +647,66 @@
               },
               {
                 "kind": "account",
-                "path": "signer"
+                "path": "authority"
               }
             ]
           }
         },
         {
-          "name": "signer",
+          "name": "authority",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "initialize_season",
+      "discriminator": [
+        48,
+        218,
+        111,
+        51,
+        235,
+        207,
+        4,
+        119
+      ],
+      "accounts": [
+        {
+          "name": "season_state",
+          "docs": [
+            "Global season state PDA"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  101,
+                  97,
+                  115,
+                  111,
+                  110,
+                  95,
+                  115,
+                  116,
+                  97,
+                  116,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
           "writable": true,
           "signer": true
         },
@@ -224,9 +719,6 @@
     },
     {
       "name": "leave_fallow",
-      "docs": [
-        "Let a plot rest to restore fertility naturally"
-      ],
       "discriminator": [
         127,
         224,
@@ -256,13 +748,13 @@
               },
               {
                 "kind": "account",
-                "path": "signer"
+                "path": "authority"
               }
             ]
           }
         },
         {
-          "name": "signer",
+          "name": "authority",
           "writable": true,
           "signer": true
         }
@@ -276,9 +768,6 @@
     },
     {
       "name": "plant_crop",
-      "docs": [
-        "Plant a crop on a specific tile"
-      ],
       "discriminator": [
         16,
         193,
@@ -308,13 +797,37 @@
               },
               {
                 "kind": "account",
-                "path": "signer"
+                "path": "authority"
               }
             ]
           }
         },
         {
-          "name": "signer",
+          "name": "season_state",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  101,
+                  97,
+                  115,
+                  111,
+                  110,
+                  95,
+                  115,
+                  116,
+                  97,
+                  116,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
           "writable": true,
           "signer": true
         }
@@ -329,9 +842,244 @@
           "type": "u8"
         }
       ]
+    },
+    {
+      "name": "refill_watering_can",
+      "discriminator": [
+        140,
+        254,
+        201,
+        108,
+        152,
+        40,
+        136,
+        170
+      ],
+      "accounts": [
+        {
+          "name": "player_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "authority"
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "signer": true
+        },
+        {
+          "name": "owner",
+          "signer": true,
+          "relations": [
+            "player_account"
+          ]
+        },
+        {
+          "name": "clock",
+          "address": "SysvarC1ock11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "set_season",
+      "discriminator": [
+        186,
+        168,
+        212,
+        35,
+        125,
+        205,
+        106,
+        174
+      ],
+      "accounts": [
+        {
+          "name": "season_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  101,
+                  97,
+                  115,
+                  111,
+                  110,
+                  95,
+                  115,
+                  116,
+                  97,
+                  116,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "season_state"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "season_index",
+          "type": "u8"
+        }
+      ]
+    },
+    {
+      "name": "use_fertilizer",
+      "discriminator": [
+        46,
+        44,
+        50,
+        70,
+        147,
+        70,
+        246,
+        199
+      ],
+      "accounts": [
+        {
+          "name": "player_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "authority"
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "signer": true
+        },
+        {
+          "name": "owner",
+          "signer": true,
+          "relations": [
+            "player_account"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "plot_index",
+          "type": "u8"
+        }
+      ]
+    },
+    {
+      "name": "water_tile",
+      "discriminator": [
+        231,
+        227,
+        167,
+        228,
+        158,
+        248,
+        241,
+        37
+      ],
+      "accounts": [
+        {
+          "name": "player_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "authority"
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "signer": true
+        },
+        {
+          "name": "owner",
+          "signer": true,
+          "relations": [
+            "player_account"
+          ]
+        },
+        {
+          "name": "clock",
+          "address": "SysvarC1ock11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "plot_index",
+          "type": "u8"
+        }
+      ]
     }
   ],
   "accounts": [
+    {
+      "name": "GameConfig",
+      "discriminator": [
+        45,
+        146,
+        146,
+        33,
+        170,
+        69,
+        96,
+        133
+      ]
+    },
     {
       "name": "PlayerAccount",
       "discriminator": [
@@ -343,6 +1091,151 @@
         72,
         48,
         236
+      ]
+    },
+    {
+      "name": "SeasonState",
+      "discriminator": [
+        95,
+        85,
+        74,
+        250,
+        108,
+        189,
+        152,
+        52
+      ]
+    }
+  ],
+  "events": [
+    {
+      "name": "CanRefilled",
+      "discriminator": [
+        215,
+        19,
+        196,
+        221,
+        40,
+        154,
+        7,
+        175
+      ]
+    },
+    {
+      "name": "CompostCollected",
+      "discriminator": [
+        214,
+        198,
+        0,
+        210,
+        149,
+        36,
+        48,
+        15
+      ]
+    },
+    {
+      "name": "CraftingCompleted",
+      "discriminator": [
+        123,
+        88,
+        165,
+        178,
+        52,
+        218,
+        216,
+        216
+      ]
+    },
+    {
+      "name": "FertilizerApplied",
+      "discriminator": [
+        155,
+        131,
+        105,
+        205,
+        52,
+        157,
+        255,
+        160
+      ]
+    },
+    {
+      "name": "ItemCrafted",
+      "discriminator": [
+        19,
+        69,
+        109,
+        223,
+        116,
+        34,
+        30,
+        27
+      ]
+    },
+    {
+      "name": "PatternDetected",
+      "discriminator": [
+        81,
+        248,
+        159,
+        174,
+        78,
+        122,
+        139,
+        12
+      ]
+    },
+    {
+      "name": "PatternsPreview",
+      "discriminator": [
+        40,
+        174,
+        71,
+        60,
+        70,
+        150,
+        172,
+        105
+      ]
+    },
+    {
+      "name": "ResourceGathered",
+      "discriminator": [
+        9,
+        12,
+        74,
+        24,
+        1,
+        253,
+        116,
+        201
+      ]
+    },
+    {
+      "name": "ToolPurchased",
+      "discriminator": [
+        117,
+        39,
+        193,
+        76,
+        182,
+        245,
+        143,
+        181
+      ]
+    },
+    {
+      "name": "WaterApplied",
+      "discriminator": [
+        220,
+        224,
+        187,
+        243,
+        69,
+        149,
+        171,
+        240
       ]
     }
   ],
@@ -376,9 +1269,184 @@
       "code": 6005,
       "name": "InvalidCropConfig",
       "msg": "Invalid crop configuration"
+    },
+    {
+      "code": 6006,
+      "name": "InvalidSeasonForCrop",
+      "msg": "Cannot plant this crop in the current season"
+    },
+    {
+      "code": 6007,
+      "name": "InvalidSeasonIndex",
+      "msg": "Season index must be between 0 and 3"
+    },
+    {
+      "code": 6008,
+      "name": "DayAlreadyAdvanced",
+      "msg": "Can only advance day once per real day"
+    },
+    {
+      "code": 6009,
+      "name": "InsufficientToolUses",
+      "msg": "Not enough watering can uses remaining"
+    },
+    {
+      "code": 6010,
+      "name": "InsufficientFertilizer",
+      "msg": "Not enough fertilizer in inventory"
+    },
+    {
+      "code": 6011,
+      "name": "InsufficientPoints",
+      "msg": "Not enough points to complete this action"
+    },
+    {
+      "code": 6012,
+      "name": "WateringTooFrequent",
+      "msg": "Cannot water same plot more than once per hour"
+    },
+    {
+      "code": 6013,
+      "name": "InvalidPlotIndex",
+      "msg": "Plot index must be between 0 and 24"
+    },
+    {
+      "code": 6014,
+      "name": "InsufficientResources",
+      "msg": "Insufficient resources for this recipe"
+    },
+    {
+      "code": 6015,
+      "name": "InvalidResourceType",
+      "msg": "Invalid resource type"
+    },
+    {
+      "code": 6016,
+      "name": "InvalidCraftableItem",
+      "msg": "Invalid craftable item ID"
+    },
+    {
+      "code": 6017,
+      "name": "GatherCooldownActive",
+      "msg": "Cannot gather resource yet (cooldown active)"
+    },
+    {
+      "code": 6018,
+      "name": "ResourceStackOverflow",
+      "msg": "Resource stack would exceed maximum"
+    },
+    {
+      "code": 6019,
+      "name": "CraftingInProgress",
+      "msg": "Already crafting an item"
+    },
+    {
+      "code": 6020,
+      "name": "NoCraftingInProgress",
+      "msg": "No crafting job in progress"
+    },
+    {
+      "code": 6021,
+      "name": "CraftingNotComplete",
+      "msg": "Crafting not complete yet"
+    },
+    {
+      "code": 6022,
+      "name": "GatherAmountExceeded",
+      "msg": "Cannot gather more than max per action"
+    },
+    {
+      "code": 6023,
+      "name": "InvalidPatternType",
+      "msg": "Invalid pattern type"
+    },
+    {
+      "code": 6024,
+      "name": "PlotOutOfBounds",
+      "msg": "Plot position out of grid bounds"
     }
   ],
   "types": [
+    {
+      "name": "CanRefilled",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "player",
+            "type": "pubkey"
+          },
+          {
+            "name": "points_spent",
+            "type": "u32"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "CompostCollected",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "player",
+            "type": "pubkey"
+          },
+          {
+            "name": "fertilizer_gained",
+            "type": "u16"
+          },
+          {
+            "name": "days_elapsed",
+            "type": "u32"
+          }
+        ]
+      }
+    },
+    {
+      "name": "CraftingCompleted",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "player",
+            "type": "pubkey"
+          },
+          {
+            "name": "item_id",
+            "type": "u8"
+          },
+          {
+            "name": "quantity",
+            "type": "u16"
+          }
+        ]
+      }
+    },
+    {
+      "name": "CraftingJob",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "item_id",
+            "type": "u8"
+          },
+          {
+            "name": "started_at",
+            "type": "i64"
+          },
+          {
+            "name": "duration",
+            "type": "i64"
+          }
+        ]
+      }
+    },
     {
       "name": "FarmTile",
       "type": {
@@ -399,6 +1467,186 @@
           {
             "name": "last_crop_type",
             "type": "u8"
+          },
+          {
+            "name": "restorative_bonus_used",
+            "type": "bool"
+          },
+          {
+            "name": "planted_in_season",
+            "type": {
+              "option": "u8"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "FertilizerApplied",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "player",
+            "type": "pubkey"
+          },
+          {
+            "name": "plot_index",
+            "type": "u8"
+          },
+          {
+            "name": "new_fertility",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "GameConfig",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "season_length",
+            "type": "i64"
+          },
+          {
+            "name": "base_fertility",
+            "type": "u8"
+          },
+          {
+            "name": "rotation_bonus",
+            "type": "u8"
+          },
+          {
+            "name": "config_version",
+            "type": "u8"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ItemCrafted",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "player",
+            "type": "pubkey"
+          },
+          {
+            "name": "item_id",
+            "type": "u8"
+          },
+          {
+            "name": "instant",
+            "type": "bool"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PatternDetected",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "player",
+            "type": "pubkey"
+          },
+          {
+            "name": "plot_index",
+            "type": "u8"
+          },
+          {
+            "name": "pattern_type",
+            "type": {
+              "defined": {
+                "name": "PatternType"
+              }
+            }
+          },
+          {
+            "name": "yield_multiplier",
+            "type": "f32"
+          },
+          {
+            "name": "fertility_bonus",
+            "type": "u8"
+          },
+          {
+            "name": "water_bonus",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PatternType",
+      "docs": [
+        "Pattern types that can be detected on the farm grid"
+      ],
+      "repr": {
+        "kind": "rust"
+      },
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "MonocultureRow"
+          },
+          {
+            "name": "MonocultureBlock"
+          },
+          {
+            "name": "CompanionPlanting"
+          },
+          {
+            "name": "CropDiversity"
+          },
+          {
+            "name": "CrossPattern"
+          },
+          {
+            "name": "Checkerboard"
+          },
+          {
+            "name": "PerimeterDefense"
+          },
+          {
+            "name": "RotationSequence"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PatternsPreview",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "player",
+            "type": "pubkey"
+          },
+          {
+            "name": "plot_index",
+            "type": "u8"
+          },
+          {
+            "name": "pattern_count",
+            "type": "u8"
+          },
+          {
+            "name": "total_yield_multiplier",
+            "type": "f32"
           }
         ]
       }
@@ -428,6 +1676,211 @@
                 25
               ]
             }
+          },
+          {
+            "name": "water_levels",
+            "type": {
+              "array": [
+                "u8",
+                25
+              ]
+            }
+          },
+          {
+            "name": "last_watered",
+            "type": {
+              "array": [
+                "i64",
+                25
+              ]
+            }
+          },
+          {
+            "name": "last_water_decay_check",
+            "type": "i64"
+          },
+          {
+            "name": "watering_can_uses",
+            "type": "u8"
+          },
+          {
+            "name": "fertilizer_count",
+            "type": "u16"
+          },
+          {
+            "name": "premium_seeds",
+            "type": "u16"
+          },
+          {
+            "name": "wood",
+            "type": "u16"
+          },
+          {
+            "name": "stone",
+            "type": "u16"
+          },
+          {
+            "name": "fiber",
+            "type": "u16"
+          },
+          {
+            "name": "seeds",
+            "type": "u16"
+          },
+          {
+            "name": "compost_bin_count",
+            "type": "u8"
+          },
+          {
+            "name": "scarecrow_count",
+            "type": "u8"
+          },
+          {
+            "name": "fence_count",
+            "type": "u8"
+          },
+          {
+            "name": "sprinkler_count",
+            "type": "u8"
+          },
+          {
+            "name": "advanced_tools",
+            "type": "u8"
+          },
+          {
+            "name": "crafting_queue",
+            "type": {
+              "option": {
+                "defined": {
+                  "name": "CraftingJob"
+                }
+              }
+            }
+          },
+          {
+            "name": "last_gather_time",
+            "type": {
+              "array": [
+                "i64",
+                4
+              ]
+            }
+          },
+          {
+            "name": "last_compost_collection",
+            "type": "i64"
+          },
+          {
+            "name": "account_version",
+            "type": "u8"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ResourceGathered",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "player",
+            "type": "pubkey"
+          },
+          {
+            "name": "resource_type",
+            "type": "u8"
+          },
+          {
+            "name": "amount",
+            "type": "u16"
+          },
+          {
+            "name": "new_total",
+            "type": "u16"
+          }
+        ]
+      }
+    },
+    {
+      "name": "SeasonState",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "current_season",
+            "type": "u8"
+          },
+          {
+            "name": "days_passed",
+            "type": "u32"
+          },
+          {
+            "name": "season_start_day",
+            "type": "u32"
+          },
+          {
+            "name": "authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ToolPurchased",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "player",
+            "type": "pubkey"
+          },
+          {
+            "name": "tool_type",
+            "type": "u8"
+          },
+          {
+            "name": "quantity",
+            "type": "u16"
+          },
+          {
+            "name": "points_spent",
+            "type": "u32"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "WaterApplied",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "player",
+            "type": "pubkey"
+          },
+          {
+            "name": "plot_index",
+            "type": "u8"
+          },
+          {
+            "name": "new_water_level",
+            "type": "u8"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
           }
         ]
       }

@@ -6,7 +6,7 @@ resolution = true
 skip-lint = false
 
 [programs.localnet]
-farming_game = "7nktNDR2jguCMTya6kXUw7WLEV3s7E69mknQKp1yCrAQ"
+farming_game = "8NND7mQn5q7UQcrVrzrQfsHwYruqnQshMjFuwq4WBaHR"
 
 [registry]
 url = "https://api.apr.dev"

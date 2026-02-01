@@ -6,6 +6,9 @@ import { useConnection, useAnchorWallet } from "@solana/wallet-adapter-react";
 import { PublicKey, LAMPORTS_PER_SOL } from "@solana/web3.js";
 import { FarmGrid } from "@/components/FarmGrid";
 import AlertBanner from "@/components/AlertBanner";
+import { QuickActionsBar } from "@/components/ui/QuickActionsBar";
+import { TutorialOverlay, TutorialButton } from "@/components/ui/TutorialOverlay";
+import { MobileSidebar } from "@/components/ui/MobileSidebar";
 import { getProgram } from "@/app/utils/program";
 import { derivePlayerPDA, createFarmGrid, TileState, CROP_TYPES, FARMING_GAME_PROGRAM_ID } from "@/app/utils/gameHelpers";
 import * as anchor from "@coral-xyz/anchor";
@@ -22,14 +25,44 @@ export default function Home() {
   const [accountExists, setAccountExists] = useState(false);
   const [txStatus, setTxStatus] = useState<string | null>(null);
   const [showDebug, setShowDebug] = useState(false);
+  const [lastPatterns, setLastPatterns] = useState<Array<{name: string, bonus: number}>>([]);
+
+  // Resources
+  const [wood, setWood] = useState<number>(0);
+  const [stone, setStone] = useState<number>(0);
+  const [fiber, setFiber] = useState<number>(0);
+  const [seeds, setSeeds] = useState<number>(0);
+
+  // Tools & Items
+  const [wateringCanUses, setWateringCanUses] = useState<number>(0);
+  const [fertilizerCount, setFertilizerCount] = useState<number>(0);
+  const [compostBinCount, setCompostBinCount] = useState<number>(0);
 
   // Tools: "cursor" (interact/harvest), "wheat", "tomato", "corn", "carrot", "lettuce"
-  const [selectedTool, setSelectedTool] = useState<"cursor" | "wheat" | "tomato" | "corn" | "carrot" | "lettuce">("cursor");
+  const [selectedTool, setSelectedTool] = useState<"cursor" | "wheat" | "tomato" | "corn" | "carrot" | "lettuce" | "water" | "fertilize">("cursor");
   const [mounted, setMounted] = useState(false);
   const [accountDeserializationError, setAccountDeserializationError] = useState(false);
+  const [selectedPlotForTool, setSelectedPlotForTool] = useState<number | null>(null);
+
+  // Season & Time tracking
+  const [currentDay, setCurrentDay] = useState<number>(1);
+  const [currentSeason, setCurrentSeason] = useState<number>(0); // 0=Spring, 1=Summer, 2=Fall, 3=Winter
+
+  // Modal states
+  const [showCraftingModal, setShowCraftingModal] = useState(false);
+  const [showStatsModal, setShowStatsModal] = useState(false);
+  const [showHelpModal, setShowHelpModal] = useState(false);
+  const [showPlantAllModal, setShowPlantAllModal] = useState(false);
+  const [showTutorial, setShowTutorial] = useState(false);
 
   useEffect(() => {
     setMounted(true);
+    // Check if user has completed tutorial
+    const hasCompletedTutorial = localStorage.getItem('farmGameTutorialCompleted');
+    if (!hasCompletedTutorial) {
+      // Show tutorial after a brief delay
+      setTimeout(() => setShowTutorial(true), 1000);
+    }
   }, []);
 
   // Derive PDA & Fetch SOL Balance
@@ -66,8 +99,23 @@ export default function Home() {
 
       setAccountExists(true);
       setAccountDeserializationError(false);
+      
+      // Financial data
       setCoins(account.coins.toNumber());
+      
+      // Grid data
       setGrid(createFarmGrid(account.farmTiles as any));
+
+      // Resources
+      setWood(account.wood);
+      setStone(account.stone);
+      setFiber(account.fiber);
+      setSeeds(account.seeds);
+
+      // Tools & Items
+      setWateringCanUses(account.wateringCanUses);
+      setFertilizerCount(account.fertilizerCount);
+      setCompostBinCount(account.compostBinCount);
 
       // Refresh SOL balance too
       const balance = await connection.getBalance(wallet.publicKey);
@@ -133,6 +181,15 @@ export default function Home() {
   const handleTileClick = (index: number, tile: TileState | null) => {
     if (!tile) return;
 
+    // Handle tool usage (water/fertilize)
+    if (selectedTool === "water") {
+      waterPlot(index);
+      return;
+    } else if (selectedTool === "fertilize") {
+      fertilizePlot(index);
+      return;
+    }
+
     if (tile.cropType === CROP_TYPES.EMPTY) {
       if (selectedTool === "wheat") {
         plant(index, CROP_TYPES.WHEAT);
@@ -175,7 +232,7 @@ export default function Home() {
       const tx = await program.methods.plantCrop(index, cropType)
         .accounts({
           playerAccount: playerPDA,
-          signer: wallet.publicKey,
+          authority: wallet.publicKey,
         } as any)
         .rpc({ skipPreflight: false });
       
@@ -199,22 +256,35 @@ export default function Home() {
     if (loading) return; // Prevent duplicate submissions
     setLoading(true);
     setTxStatus("Harvesting... 🚜");
+    setLastPatterns([]); // Clear previous patterns
     try {
       const program = getProgram(connection, wallet);
+      
+      // Listen for pattern events
+      const listener = program.addEventListener('PatternDetected', (event: any) => {
+        const patternNames = ['Row', 'Block', 'Companion', 'Diversity', 'Cross', 'Checkerboard', 'Perimeter', 'Rotation'];
+        const name = patternNames[event.patternType] || 'Unknown';
+        const bonus = ((event.yieldMultiplier - 1) * 100).toFixed(0);
+        setLastPatterns(prev => [...prev, { name, bonus: parseFloat(bonus) }]);
+        console.log(`✨ Pattern Detected: ${name} (+${bonus}% yield)`);
+      });
+
       const tx = await program.methods.harvestCrop(index)
         .accounts({
           playerAccount: playerPDA,
-          signer: wallet.publicKey,
+          authority: wallet.publicKey,
         } as any)
         .rpc({ skipPreflight: false });
       
       console.log("Harvest TX:", tx);
+      program.removeEventListener(listener);
+      
       setTxStatus("Harvested! 💰");
       
       // Wait a bit for state update
       await new Promise(resolve => setTimeout(resolve, 1000));
       await refreshState();
-      setTimeout(() => setTxStatus(null), 2000);
+      setTimeout(() => setTxStatus(null), 3000);
     } catch (e: any) {
       handleError(e, "Harvest");
     } finally {
@@ -243,7 +313,7 @@ export default function Home() {
         .closePlayer()
         .accounts({
           playerAccount: playerPDA,
-          signer: wallet.publicKey,
+          authority: wallet.publicKey,
           systemProgram: anchor.web3.SystemProgram.programId,
         } as any)
         .rpc();
@@ -261,7 +331,145 @@ export default function Home() {
     }
   };
 
-  // Initialize
+  // Water a plot
+  const waterPlot = async (index: number) => {
+    if (!wallet || !playerPDA) return;
+    if (wateringCanUses <= 0) {
+      alert("⚠️ No watering can uses left! Refill with resources or coins.");
+      return;
+    }
+
+    setLoading(true);
+    setTxStatus("Watering plot... 💧");
+    try {
+      const program = getProgram(connection, wallet);
+      await program.methods
+        .waterTile(index)
+        .accounts({
+          playerAccount: playerPDA,
+          authority: wallet.publicKey,
+        } as any)
+        .rpc({ skipPreflight: false });
+
+      setTxStatus("Plot watered! 💧");
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      await refreshState();
+      setTimeout(() => setTxStatus(null), 2000);
+    } catch (e: any) {
+      handleError(e, "Water Plot");
+    } finally {
+      setLoading(false);
+      setSelectedPlotForTool(null);
+    }
+  };
+
+  // Use fertilizer on a plot
+  const fertilizePlot = async (index: number) => {
+    if (!wallet || !playerPDA) return;
+    if (fertilizerCount <= 0) {
+      alert("⚠️ No fertilizer! Craft more with 5 fiber + 3 seeds.");
+      return;
+    }
+
+    setLoading(true);
+    setTxStatus("Applying fertilizer... 🌱");
+    try {
+      const program = getProgram(connection, wallet);
+      await program.methods
+        .useFertilizer(index)
+        .accounts({
+          playerAccount: playerPDA,
+          authority: wallet.publicKey,
+        } as any)
+        .rpc({ skipPreflight: false });
+
+      setTxStatus("Fertilizer applied! 🌱");
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      await refreshState();
+      setTimeout(() => setTxStatus(null), 2000);
+    } catch (e: any) {
+      handleError(e, "Fertilize Plot");
+    } finally {
+      setLoading(false);
+      setSelectedPlotForTool(null);
+    }
+  };
+
+  // Initialize Game (Global - one time only)
+  const initializeGame = async () => {
+    if (!wallet) return;
+
+    setLoading(true);
+    setTxStatus("Initializing Game State... 🔧");
+    try {
+      const program = getProgram(connection, wallet);
+      const [gameConfigPDA] = PublicKey.findProgramAddressSync(
+        [Buffer.from("game_config")],
+        program.programId
+      );
+
+      await program.methods
+        .initializeGame()
+        .accounts({
+          gameConfig: gameConfigPDA,
+          authority: wallet.publicKey,
+          systemProgram: anchor.web3.SystemProgram.programId,
+        } as any)
+        .rpc();
+      
+      setTxStatus("Game State Ready! ✅");
+      setTimeout(() => setTxStatus(null), 2000);
+    } catch (e: any) {
+      // If already initialized, that's fine
+      if (e.message.includes("already in use")) {
+        console.log("Game already initialized");
+        setTxStatus(null);
+      } else {
+        handleError(e, "Initialize Game");
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Initialize Season
+  const initializeSeason = async () => {
+    if (!wallet) return;
+
+    setLoading(true);
+    setTxStatus("Initializing Season... 🌾");
+    try {
+      const program = getProgram(connection, wallet);
+      const [seasonStatePDA] = PublicKey.findProgramAddressSync(
+        [Buffer.from("season_state")],
+        program.programId
+      );
+
+      await program.methods
+        .initializeSeason()
+        .accounts({
+          seasonState: seasonStatePDA,
+          authority: wallet.publicKey,
+          systemProgram: anchor.web3.SystemProgram.programId,
+        } as any)
+        .rpc();
+      
+      setTxStatus("Season Ready! ✅");
+      setTimeout(() => setTxStatus(null), 2000);
+    } catch (e: any) {
+      // If already initialized, that's fine
+      if (e.message.includes("already in use")) {
+        console.log("Season already initialized");
+        setTxStatus(null);
+      } else {
+        handleError(e, "Initialize Season");
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Initialize Player Farm
   const initializePlayer = async () => {
     if (!wallet || !playerPDA) return;
     if (solBalance < 0.005) {
@@ -277,7 +485,7 @@ export default function Home() {
         .initializePlayer()
         .accounts({
           playerAccount: playerPDA,
-          signer: wallet.publicKey,
+          authority: wallet.publicKey,
           systemProgram: anchor.web3.SystemProgram.programId,
         } as any)
         .rpc();
@@ -291,71 +499,221 @@ export default function Home() {
     }
   };
 
+  // Season helper functions
+  const getSeasonInfo = (season: number) => {
+    const seasons = [
+      { emoji: '🌸', name: 'Spring', color: 'from-pink-500 to-pink-600', textColor: 'text-pink-600 dark:text-pink-400' },
+      { emoji: '☀️', name: 'Summer', color: 'from-yellow-500 to-yellow-600', textColor: 'text-yellow-600 dark:text-yellow-400' },
+      { emoji: '🍂', name: 'Fall', color: 'from-orange-500 to-orange-600', textColor: 'text-orange-600 dark:text-orange-400' },
+      { emoji: '❄️', name: 'Winter', color: 'from-blue-500 to-blue-600', textColor: 'text-blue-600 dark:text-blue-400' }
+    ];
+    return seasons[season] || seasons[0];
+  };
+
+  const getDaysUntilNextSeason = () => {
+    const daysPerSeason = 30;
+    const daysInSeason = currentDay % daysPerSeason || daysPerSeason;
+    return daysPerSeason - daysInSeason;
+  };
+
+  // Batch Operations
+  const handlePlantAll = () => {
+    if (!grid) return;
+    setShowPlantAllModal(true);
+    // For now, just show an alert - full modal implementation will come in Task D
+    alert('🌱 Plant All: This will open a crop selection modal to plant all empty plots. (Full modal coming in Task D)');
+  };
+
+  const handleWaterAll = async () => {
+    if (!wallet || !grid || loading) return;
+    
+    // Find all plots that need water (below 60%)
+    const plotsToWater: number[] = [];
+    grid.forEach((row, rowIndex) => {
+      row.forEach((tile, colIndex) => {
+        const index = rowIndex * 5 + colIndex;
+        // Check if plot has crop (cropType !== 0 means planted)
+        // Note: Currently waterLevel doesn't exist on TileState, so we'll water all planted plots
+        if (tile && tile.cropType !== 0) {
+          plotsToWater.push(index);
+        }
+      });
+    });
+
+    if (plotsToWater.length === 0) {
+      setTxStatus('All plots are well watered! 💧');
+      setTimeout(() => setTxStatus(null), 2000);
+      return;
+    }
+
+    if (wateringCanUses < plotsToWater.length) {
+      alert(`⚠️ Need ${plotsToWater.length} watering can uses, but only have ${wateringCanUses}. Craft more watering cans!`);
+      return;
+    }
+
+    setLoading(true);
+    setTxStatus(`Watering ${plotsToWater.length} plots... 💧`);
+    
+    let successCount = 0;
+    for (const index of plotsToWater) {
+      try {
+        await waterPlot(index);
+        successCount++;
+      } catch (e) {
+        console.error(`Failed to water plot ${index}:`, e);
+      }
+    }
+    
+    setLoading(false);
+    setTxStatus(`Watered ${successCount}/${plotsToWater.length} plots! 💧✅`);
+    setTimeout(() => setTxStatus(null), 3000);
+  };
+
+  const handleOpenCrafting = () => {
+    setShowCraftingModal(true);
+    // For now, just show an alert - full modal implementation will come in Task D
+    alert('🔨 Crafting: Full crafting modal coming in Task D! You\'ll be able to craft tools and items here.');
+  };
+
+  const handleOpenStats = () => {
+    setShowStatsModal(true);
+    // For now, show basic stats
+    const totalCrops = grid ? grid.flat().filter(t => t && t.cropType !== 0).length : 0;
+    const readyCrops = grid ? grid.flat().filter(t => t && t.cropType !== 0 && t.isReady).length : 0;
+    alert(
+      `📊 Farm Statistics\n\n` +
+      `Total Plots: 25\n` +
+      `Planted: ${totalCrops}\n` +
+      `Ready to Harvest: ${readyCrops}\n` +
+      `Points: ${coins}\n\n` +
+      `Resources:\n` +
+      `🪵 Wood: ${wood}\n` +
+      `🪨 Stone: ${stone}\n` +
+      `🌿 Fiber: ${fiber}\n` +
+      `🌾 Seeds: ${seeds}\n\n` +
+      `(Full analytics dashboard coming in Task D)`
+    );
+  };
+
+  const handleOpenHelp = () => {
+    setShowHelpModal(true);
+    // For now, show basic help - full tutorial system will come in Task F
+    alert(
+      `❓ Quick Help\n\n` +
+      `🌱 Plant: Click empty plot, select crop\n` +
+      `💧 Water: Water plots to maintain growth\n` +
+      `🌾 Harvest: Click ready crops (glowing green)\n` +
+      `🔨 Craft: Create tools from resources\n` +
+      `📊 Patterns: Plant in formations for bonuses\n\n` +
+      `(Full tutorial system coming in Task F)`
+    );
+  };
+
   return (
-    <main className="flex min-h-screen flex-col items-center p-8 bg-green-50 dark:bg-slate-900 transition-colors relative font-sans">
-      <div className="z-10 w-full max-w-5xl items-center justify-between font-mono text-sm flex lg:flex-row flex-col mb-8">
-        <h1 className="text-3xl font-bold text-green-800 dark:text-green-400 flex items-center gap-2">
-          🌽 Solana Farm
-        </h1>
-        <div className="flex items-center gap-4 mt-4 lg:mt-0">
-          {mounted && (
-            <WalletMultiButton className="!bg-green-700 hover:!bg-green-600 !transition-colors !rounded-xl !font-bold" />
-          )}
-        </div>
-      </div>
-
-      <div className="w-full max-w-3xl flex flex-col items-center gap-8">
-        {wallet ? (
-          <>
-            {/* Alert Banner - shows actionable notifications */}
-            {accountExists && grid && (
-              <AlertBanner tiles={grid.flat()} />
-            )}
-
-            {/* Status Bar / Coins */}
-            <div className="flex w-full gap-4 justify-between items-center bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 relative overflow-hidden">
-              <div className="flex items-center gap-3">
-                <div className="bg-amber-100 dark:bg-amber-900/30 p-2 rounded-lg">
-                  <span className="text-2xl">💰</span>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500 font-bold uppercase tracking-wider">Balance</p>
-                  <p className="text-xl font-bold text-gray-800 dark:text-white">{coins.toLocaleString()} Coins</p>
+    <main className="flex min-h-screen flex-col bg-gradient-to-b from-green-50 to-emerald-100 dark:from-slate-900 dark:to-slate-800 transition-colors relative font-sans">
+      {/* TOP BAR - Season, Alerts, Profile */}
+      <div className="sticky top-0 z-50 bg-white/90 dark:bg-slate-800/90 backdrop-blur-md border-b border-gray-200 dark:border-gray-700 shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 py-3">
+          <div className="flex items-center justify-between gap-4">
+            {/* Left: Season & Time */}
+            <div className="flex items-center gap-3">
+              <div className={`flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r ${getSeasonInfo(currentSeason).color} text-white shadow-lg cursor-pointer hover:scale-105 transition-transform animate-gradient-shift`}
+                   title={`${getDaysUntilNextSeason()} days until next season`}>
+                <span className="text-2xl">{getSeasonInfo(currentSeason).emoji}</span>
+                <div className="flex flex-col">
+                  <span className="font-bold text-sm">{getSeasonInfo(currentSeason).name}</span>
+                  <span className="text-xs opacity-90">Day {currentDay}</span>
                 </div>
               </div>
-
-              {txStatus && (
-                <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-black/80 text-white px-4 py-1 rounded-full text-sm font-medium animate-fade-in fade-out z-10 whitespace-nowrap">
-                  {txStatus}
-                </div>
-              )}
-
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={refreshState}
-                  disabled={loading}
-                  className="p-2 text-gray-400 hover:text-green-600 transition-colors"
-                  title="Refresh"
-                >
-                  🔄
-                </button>
+              <div className="text-xs text-gray-500 dark:text-gray-400 hidden md:block">
+                ⏰ {getDaysUntilNextSeason()}d until {getSeasonInfo((currentSeason + 1) % 4).name}
               </div>
             </div>
 
+            {/* Center: Title */}
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl md:text-2xl font-bold text-green-800 dark:text-green-400">🌾 Solana Farm</h1>
+            </div>
+
+            {/* Right: Profile & Wallet */}
+            <div className="flex items-center gap-3">
+              {accountExists && (
+                <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-amber-100 dark:bg-amber-900/30 rounded-lg">
+                  <span className="text-xs font-bold text-amber-700 dark:text-amber-300">{coins.toLocaleString()} pts</span>
+                </div>
+              )}
+              {mounted && (
+                <WalletMultiButton className="!bg-green-700 hover:!bg-green-600 !transition-colors !rounded-lg !font-bold !text-sm" />
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* MAIN CONTENT AREA */}
+      <div className="flex-1 w-full max-w-7xl mx-auto px-4 py-6 pb-24">
+        {wallet ? (
+          <>
+            {/* Alert Banner */}
+            {accountExists && grid && (
+              <div className="mb-4">
+                <AlertBanner tiles={grid.flat()} />
+              </div>
+            )}
+
             {accountExists ? (
               <>
-                {/* Tool Selection */}
-                <div className="flex bg-white dark:bg-slate-800 p-1 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 flex-wrap gap-1">
-                  <button
-                    onClick={() => setSelectedTool("cursor")}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${selectedTool === "cursor"
-                      ? "bg-blue-100 text-blue-700 shadow-sm"
-                      : "text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-700"
-                      }`}
-                  >
-                    <span>👆</span> Interact
-                  </button>
-                  <div className="w-px bg-gray-200 dark:bg-gray-700 mx-1"></div>
+              <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6">
+                {/* LEFT/CENTER: Farm Grid & Actions */}
+                <div className="flex flex-col gap-4">
+                  {/* Status Bar showing coins for mobile */}
+                  <div className="lg:hidden flex items-center justify-between bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
+                    <div className="flex items-center gap-3">
+                      <div className="bg-amber-100 dark:bg-amber-900/30 p-2 rounded-lg">
+                        <span className="text-2xl">💰</span>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500 font-bold uppercase">Balance</p>
+                        <p className="text-xl font-bold text-gray-800 dark:text-white">{coins.toLocaleString()} Coins</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Mobile Sidebar - Tabbed */}
+                  <div className="lg:hidden">
+                    <MobileSidebar
+                      wood={wood}
+                      stone={stone}
+                      fiber={fiber}
+                      seeds={seeds}
+                      wateringCanUses={wateringCanUses}
+                      fertilizerCount={fertilizerCount}
+                      compostBinCount={compostBinCount}
+                      selectedTool={selectedTool}
+                      onToolSelect={setSelectedTool}
+                    />
+                  </div>
+
+                  {/* Transaction Status Overlay */}
+                  {txStatus && (
+                    <div className="bg-black/80 text-white px-4 py-2 rounded-lg text-sm font-medium text-center animate-fade-in">
+                      {txStatus}
+                    </div>
+                  )}
+
+                  {/* Crop Selection Toolbar */}
+                  <div className="bg-white dark:bg-slate-800 p-3 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700">
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        onClick={() => setSelectedTool("cursor")}
+                        className={`flex items-center gap-2 px-3 py-2 rounded-lg font-medium transition-all text-sm ${selectedTool === "cursor"
+                          ? "bg-blue-600 text-white shadow-md"
+                          : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
+                          }`}
+                      >
+                        <span>👆</span> <span className="hidden sm:inline">Interact</span>
+                      </button>
+                      <div className="w-px bg-gray-200 dark:bg-gray-700"></div>
                   
                   <button
                     onClick={() => setSelectedTool("wheat")}
@@ -434,33 +792,179 @@ export default function Home() {
                 </div>
 
                 <div className={loading ? "opacity-70 transition-opacity" : "transition-opacity"}>
-                  <FarmGrid grid={grid} onTileClick={handleTileClick} />
+                  <FarmGrid grid={grid} onTileClick={handleTileClick} selectedTool={selectedTool} />
                 </div>
 
-                {/* Tips & Help Section */}
-                <div className="w-full max-w-2xl bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 p-4 rounded-xl border border-blue-200 dark:border-blue-800">
-                  <div className="text-sm space-y-2">
-                    <div className="font-bold text-blue-900 dark:text-blue-300 mb-2">🎯 Quick Tips:</div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs text-gray-700 dark:text-gray-300">
-                      <div className="flex gap-2">
-                        <span>✨</span>
-                        <span>Harvest within the optimal window for maximum yield</span>
+                  {/* Pattern Bonus Display */}
+                  {lastPatterns.length > 0 && (
+                    <div className="bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/30 dark:to-orange-900/30 p-3 rounded-xl border-2 border-amber-300 dark:border-amber-600 animate-pulse">
+                      <div className="text-sm space-y-1">
+                        <div className="font-bold text-amber-900 dark:text-amber-300 text-xs">✨ Pattern Bonuses!</div>
+                        <div className="space-y-1">
+                          {lastPatterns.map((pattern, idx) => (
+                            <div key={idx} className="flex items-center justify-between bg-white/50 dark:bg-black/20 p-1.5 rounded-lg text-xs">
+                              <span className="text-amber-700 dark:text-amber-200 font-semibold">{pattern.name}</span>
+                              <span className="font-bold text-orange-600 dark:text-orange-400">+{pattern.bonus}%</span>
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                      <div className="flex gap-2">
-                        <span>♻️</span>
-                        <span>Rotate crops for +10 fertility bonus</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* RIGHT SIDEBAR: Resources & Tools - Desktop Only */}
+                <div className="hidden lg:flex flex-col gap-4">
+                  {/* Resources Panel */}
+                  <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-4">
+                    <h3 className="text-sm font-bold text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2">
+                      <span>📦</span> Resources
+                    </h3>
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xl">🪵</span>
+                          <span className="text-xs font-semibold text-gray-600 dark:text-gray-400">Wood</span>
+                        </div>
+                        <span className="text-sm font-bold text-green-700 dark:text-green-400">{wood}</span>
                       </div>
-                      <div className="flex gap-2">
-                        <span>🌱</span>
-                        <span>Use Carrot/Lettuce to restore depleted soil</span>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xl">🪨</span>
+                          <span className="text-xs font-semibold text-gray-600 dark:text-gray-400">Stone</span>
+                        </div>
+                        <span className="text-sm font-bold text-stone-700 dark:text-stone-400">{stone}</span>
                       </div>
-                      <div className="flex gap-2">
-                        <span>📊</span>
-                        <span>Hover tiles to see detailed yield predictions</span>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xl">🌾</span>
+                          <span className="text-xs font-semibold text-gray-600 dark:text-gray-400">Fiber</span>
+                        </div>
+                        <span className="text-sm font-bold text-amber-700 dark:text-amber-400">{fiber}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xl">🌱</span>
+                          <span className="text-xs font-semibold text-gray-600 dark:text-gray-400">Seeds</span>
+                        </div>
+                        <span className="text-sm font-bold text-yellow-700 dark:text-yellow-400">{seeds}</span>
                       </div>
                     </div>
                   </div>
+
+                  {/* Tools Panel */}
+                  <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-4">
+                    <h3 className="text-sm font-bold text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2">
+                      <span>🛠️</span> Tools & Items
+                    </h3>
+                    <div className="space-y-3">
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xl">💧</span>
+                            <span className="text-xs font-semibold text-gray-600 dark:text-gray-400">Watering Can</span>
+                          </div>
+                          <span className="text-sm font-bold text-blue-700 dark:text-blue-400">{wateringCanUses} uses</span>
+                        </div>
+                        {wateringCanUses > 0 && (
+                          <button
+                            onClick={() => setSelectedTool("water")}
+                            className={`w-full px-3 py-2 rounded-lg font-medium transition-all text-xs ${selectedTool === "water"
+                              ? "bg-blue-600 text-white shadow-lg scale-105"
+                              : "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 hover:bg-blue-200"
+                              }`}
+                          >
+                            💧 {selectedTool === "water" ? "Selected - Click Plot" : "Water Plot"}
+                          </button>
+                        )}
+                      </div>
+                      
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xl">🌱</span>
+                            <span className="text-xs font-semibold text-gray-600 dark:text-gray-400">Fertilizer</span>
+                          </div>
+                          <span className="text-sm font-bold text-purple-700 dark:text-purple-400">{fertilizerCount}</span>
+                        </div>
+                        {fertilizerCount > 0 && (
+                          <button
+                            onClick={() => setSelectedTool("fertilize")}
+                            className={`w-full px-3 py-2 rounded-lg font-medium transition-all text-xs ${selectedTool === "fertilize"
+                              ? "bg-purple-600 text-white shadow-lg scale-105"
+                              : "bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 hover:bg-purple-200"
+                              }`}
+                          >
+                            🌱 {selectedTool === "fertilize" ? "Selected - Click Plot" : "Fertilize"}
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="pt-2 border-t border-gray-200 dark:border-gray-700">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xl">♻️</span>
+                            <span className="text-xs font-semibold text-gray-600 dark:text-gray-400">Compost Bins</span>
+                          </div>
+                          <span className="text-sm font-bold text-green-700 dark:text-green-400">{compostBinCount}</span>
+                        </div>
+                        {compostBinCount > 0 && (
+                          <div className="mt-2 text-xs text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 px-2 py-1 rounded text-center">
+                            Ready to collect
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Quick Tips */}
+                  <div className="bg-gradient-to-br from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 rounded-xl p-3 border border-blue-200 dark:border-blue-800">
+                    <div className="text-xs space-y-2">
+                      <div className="font-bold text-blue-900 dark:text-blue-300">💡 Quick Tips</div>
+                      <ul className="space-y-1 text-gray-700 dark:text-gray-300 text-[10px]">
+                        <li>• Plant 3+ same crops for +15% Row bonus</li>
+                        <li>• 2×2 blocks get +20% yield</li>
+                        <li>• Rotate crops for +10% bonus</li>
+                        <li>• Carrots restore fertility!</li>
+                      </ul>
+                    </div>
+                  </div>
                 </div>
+              </div>
+            </div>
+
+            {/* Tips & Help Section - Below Grid */}
+            <div className="mt-6 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 p-4 rounded-xl border border-blue-200 dark:border-blue-800">
+              <div className="text-sm space-y-2">
+                <div className="font-bold text-blue-900 dark:text-blue-300 mb-2">🎯 Pattern Synergies System:</div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs text-gray-700 dark:text-gray-300">
+                    <div className="flex gap-2">
+                      <span>📏</span>
+                      <span><strong>Monoculture Row:</strong> 3+ same crops in a line (+15%)</span>
+                    </div>
+                    <div className="flex gap-2">
+                      <span>🟩</span>
+                      <span><strong>Monoculture Block:</strong> 2×2 square of same crop (+20%)</span>
+                    </div>
+                    <div className="flex gap-2">
+                      <span>🤝</span>
+                      <span><strong>Companion Planting:</strong> Wheat+Carrot or Corn+Lettuce (+5-10%)</span>
+                    </div>
+                    <div className="flex gap-2">
+                      <span>🌈</span>
+                      <span><strong>Crop Diversity:</strong> 4 different neighbors (+25% + fertility)</span>
+                    </div>
+                    <div className="flex gap-2">
+                      <span>✚</span>
+                      <span><strong>Cross Pattern:</strong> + shape of same crop (+30% + seeds)</span>
+                    </div>
+                    <div className="flex gap-2">
+                      <span>🏰</span>
+                      <span><strong>Perimeter Defense:</strong> Different crops around center (+40%)</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
               </>
             ) : (
               <div className="text-center p-12 bg-white/50 dark:bg-slate-800/50 rounded-3xl border-4 border-double border-green-200 dark:border-green-800 backdrop-blur-sm shadow-xl">
@@ -471,13 +975,29 @@ export default function Home() {
                 <p className="text-green-700 dark:text-green-500 mb-6">
                   Your land is waiting. Initialize your farm to begin.
                 </p>
-                <button
-                  onClick={initializePlayer}
-                  disabled={loading}
-                  className="px-8 py-3 bg-green-600 hover:bg-green-500 text-white rounded-xl transition-all font-bold shadow-lg transform hover:-translate-y-1 active:translate-y-0 disabled:opacity-50 disabled:transform-none flex items-center gap-2 mx-auto"
-                >
-                  {loading ? "Constructing..." : "Initialize Farm ✨"}
-                </button>
+                <div className="flex flex-col gap-3 mx-auto w-full max-w-sm">
+                  <button
+                    onClick={initializeGame}
+                    disabled={loading}
+                    className="px-8 py-3 bg-purple-600 hover:bg-purple-500 text-white rounded-xl transition-all font-bold shadow-lg transform hover:-translate-y-1 active:translate-y-0 disabled:opacity-50 disabled:transform-none flex items-center justify-center gap-2 text-sm"
+                  >
+                    {loading ? "Initializing..." : "🔧 Initialize Game State (Required Once)"}
+                  </button>
+                  <button
+                    onClick={initializeSeason}
+                    disabled={loading}
+                    className="px-8 py-3 bg-yellow-600 hover:bg-yellow-500 text-white rounded-xl transition-all font-bold shadow-lg transform hover:-translate-y-1 active:translate-y-0 disabled:opacity-50 disabled:transform-none flex items-center justify-center gap-2 text-sm"
+                  >
+                    {loading ? "Initializing..." : "🌾 Initialize Season (Required Once)"}
+                  </button>
+                  <button
+                    onClick={initializePlayer}
+                    disabled={loading}
+                    className="px-8 py-3 bg-green-600 hover:bg-green-500 text-white rounded-xl transition-all font-bold shadow-lg transform hover:-translate-y-1 active:translate-y-0 disabled:opacity-50 disabled:transform-none flex items-center justify-center gap-2"
+                  >
+                    {loading ? "Constructing..." : "Initialize Farm ✨"}
+                  </button>
+                </div>
               </div>
             )}
           </>
@@ -542,6 +1062,28 @@ export default function Home() {
           </div>
         )}
       </div>
+
+      {/* Quick Actions Bar - Fixed Bottom */}
+      {accountExists && grid && (
+        <QuickActionsBar
+          onPlantAll={handlePlantAll}
+          onWaterAll={handleWaterAll}
+          onOpenCrafting={handleOpenCrafting}
+          onOpenStats={handleOpenStats}
+          onOpenHelp={handleOpenHelp}
+          disabled={loading}
+        />
+      )}
+
+      {/* Tutorial Overlay */}
+      {showTutorial && (
+        <TutorialOverlay onComplete={() => setShowTutorial(false)} />
+      )}
+
+      {/* Tutorial Restart Button */}
+      {!showTutorial && mounted && (
+        <TutorialButton onClick={() => setShowTutorial(true)} />
+      )}
     </main>
   );
 }
